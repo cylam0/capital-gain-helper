@@ -20,5 +20,8 @@ transactionLogic.logCalculations(
       cost: 0,
     })
   },
-  { logger: console }
+  {
+    transactionLogic,
+    logger: console
+  }
 );

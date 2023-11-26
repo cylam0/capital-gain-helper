@@ -55,65 +55,103 @@ export default class TransactionLogic {
     }
     return transactions;
   }
-  logCalculations({ transactions, ticker, pool }, { logger }) {
-    const transactionsByTicker = this.sortTransactionsByLogOrder(
+  logCalculations({ transactions, ticker, pool }, { transactionLogic, logger }) {
+    const transactionsByTicker = transactionLogic.sortTransactionsByLogOrder(
       transactions.filter(t => t.ticker === ticker)
     );
     for (const transaction of transactionsByTicker) {
-      logger.log(transaction.toLogString());
+      transactionLogic.logTransaction({ transaction }, { logger });
       const indent = '  '
       if (transaction.share < 0) {
         let unmatchedShare = transaction.share;
         const costs = [];
         for (const match of transaction.matches) {
-          logger.log(`${indent}${match.toLogString()}. ${match.toCostString()}`);
+          transactionLogic.logMatch({ match, indent }, { logger });
           costs.push(match.getCost());
           unmatchedShare += match.share;
         }
         if (unmatchedShare < 0) {
           costs.push(pool.getSellCost(-unmatchedShare))
-          pool.sell(
-            {
-              share: -unmatchedShare
-            },
-            {
-              logger: {
-                log: (message) => {
-                  logger.log(`${indent}${message}`);
-                }
-              }
-            }
-          );
+          transactionLogic.logPoolDisposal({ pool, share: -unmatchedShare, indent }, { logger })
+          pool.sell({ share: -unmatchedShare });
         }
-        if (costs.length > 1) {
-          console.log(`${indent}Total cost for this disposal=${costs.map(x => x.toFixed(2)).join("+")}=£${costs.reduce((a, b) => a + b, 0).toFixed(2)}`);
-        } else if (costs.length === 1) {
-          console.log(`${indent}Total cost for this disposal=£${costs.reduce((a, b) => a + b, 0).toFixed(2)}`);
-        }
-      }
-      if (transaction.share > 0) {
+        transactionLogic.logDisposalCost({ costs, indent }, { logger });
+        transactionLogic.logDisposalGain({ transaction, costs, indent }, { logger })
+      } else if (transaction.share > 0) {
         let unmatchedShare = transaction.share;
         for (const match of transaction.matches) {
           unmatchedShare -= match.share;
         }
         if (unmatchedShare > 0) {
-          console.log(`${indent}There are ${unmatchedShare} ${transaction.ticker} not matched.`);
+          if (transaction.matches.length > 0) {
+            logger.log(`${indent}Unmatched shares=${unmatchedShare} ${transaction.ticker}.`);
+          }
+          transactionLogic.logPoolPurchase({
+            pool,
+            share: unmatchedShare,
+            totalCost: -(transaction.proceed_gbp - transaction.comission_gbp),
+            totalShare: Math.abs(transaction.share),
+            indent
+          }, { logger })
           pool.buy(
             {
               share: unmatchedShare,
               totalCost: -(transaction.proceed_gbp - transaction.comission_gbp),
               totalShare: Math.abs(transaction.share),
-            },
-            {
-              logger: {
-                log: (message) => {
-                  logger.log(`${indent}${message}`);
-                }
-              }
             }
           );
         }
       }
+    }
+  }
+  logDisposalCost({ costs, indent }, { logger }) {
+    if (costs.length > 1) {
+      const costExpression = costs.map(x => x.toFixed(2)).join("+")
+      const totalCost = costs.reduce((a, b) => a + b, 0).toFixed(2)
+      logger.log(`${indent}Disposal cost=${costExpression}=£${totalCost}`);
+    } else if (costs.length === 1) {
+      logger.log(`${indent}Disposal cost=£${costs[0].toFixed(2)}`);
+    }
+  }
+  logDisposalGain({ transaction: t, costs, indent }, { logger }) {
+    const totalCost = costs.reduce((a, b) => a + b, 0);
+    const gain = (t.proceed_gbp - t.comission_gbp - totalCost).toFixed(2)
+    if (gain >= 0) {
+      logger.log(indent +
+        `Chargable gain=${Math.abs(t.proceed_gbp - t.comission_gbp).toFixed(2)}-${totalCost.toFixed(2)}=£${gain}`
+      )
+    } else {
+      logger.log(indent +
+        `Allowable loss=${totalCost.toFixed(2)}-${Math.abs(t.proceed_gbp - t.comission_gbp).toFixed(2)}=£${-gain}`
+      )
+    }
+  }
+  logMatch({ match: m, indent = '' }, { logger }) {
+    const costDesc = `Cost=${-(m.transaction.proceed_gbp - m.transaction.comission_gbp).toFixed(2)}*${m.share}/${m.transaction.share}=£${m.getCost().toFixed(2)}`
+    if (m.transaction.share < 0) {
+      logger.log(indent + `Matches with ${m.share} ${m.transaction.ticker} sold on ${m.transaction.date.toISOString().split("T")[0]}. ${costDesc}`)
+      return;
+    }
+    logger.log(indent + `Matches with ${m.share} ${m.transaction.ticker} bought on ${m.transaction.date.toISOString().split("T")[0]}. ${costDesc}`)
+  }
+  logPoolDisposal({ pool: p, share, indent }, { logger }) {
+    const finalCost = p.cost.toFixed(2) * share / p.share
+    logger.log(indent +
+      `Matches with ${share} ${p.ticker} in Section 104. Cost=${p.cost.toFixed(2)}*${share}/${p.share}=£${finalCost.toFixed(2)}`
+    )
+    logger.log(indent +
+      `In Section 104, number of shares becomes ${p.share}-${share}=${p.share - share} and cost becomes ${p.cost.toFixed(2)}-${finalCost.toFixed(2)}=£${(p.cost - finalCost).toFixed(2)}.`
+    )
+  }
+  logPoolPurchase({ pool: p, share, totalCost, totalShare, indent = '' }, { logger }) {
+    const cost = Math.round(totalCost * share / totalShare * 100) / 100
+    logger.log(indent + `In Section 104, number of shares becomes ${p.share}+${share}=${p.share + share} and cost becomes ${p.cost.toFixed(2)}+${totalCost.toFixed(2)}*${share}/${totalShare.toFixed(2)}=£${(p.cost + cost).toFixed(2)}.`)
+  }
+  logTransaction({ transaction: t, indent = '' }, { logger }) {
+    if (t.share < 0) {
+      logger.log(indent + `SELL ${-t.share} ${t.ticker} for £${Math.abs(t.proceed_gbp - t.comission_gbp).toFixed(2)} on ${t.date.toISOString().split("T")[0]}`)
+    } else {
+      logger.log(indent + `BUY ${t.share} ${t.ticker} for £${Math.abs(t.proceed_gbp - t.comission_gbp).toFixed(2)} on ${t.date.toISOString().split("T")[0]}`)
     }
   }
 }

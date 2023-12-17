@@ -48,6 +48,48 @@ export default class TransactionLogic {
     }
     return transactions;
   }
+  computeDisposalGain({ transaction: t, costs }) {
+    const totalCost = costs.reduce((a, b) => a + b, 0);
+    console.log(t.ticker, t.proceed_gbp, t.comission_gbp, totalCost)
+    return (t.proceed_gbp - t.comission_gbp - totalCost)
+  }
+  getDisposalSummary({ transactions, ticker, pool }, { transactionLogic }) {
+    const transactionsByTicker = transactionLogic.sortTransactionsByDefaultOrder(
+      transactions.filter(t => t.ticker === ticker)
+    );
+    const result = [];
+    for (const transaction of transactionsByTicker) {
+      if (transaction.share < 0) {
+        let unmatchedShare = transaction.share;
+        const costs = [];
+        for (const match of transaction.matches) {
+          costs.push(match.getCost());
+          unmatchedShare += match.share;
+        }
+        if (unmatchedShare < 0) {
+          costs.push(pool.getSellCost(-unmatchedShare))
+          pool.sell({ share: -unmatchedShare });
+        }
+        const gain = transactionLogic.computeDisposalGain({ transaction, costs })
+        result.push({ ticker, share: -transaction.share, date: transaction.date, gain })
+      } else if (transaction.share > 0) {
+        let unmatchedShare = transaction.share;
+        for (const match of transaction.matches) {
+          unmatchedShare -= match.share;
+        }
+        if (unmatchedShare > 0) {
+          pool.buy(
+            {
+              share: unmatchedShare,
+              totalCost: -(transaction.proceed_gbp - transaction.comission_gbp),
+              totalShare: Math.abs(transaction.share),
+            }
+          );
+        }
+      }
+    }
+    return result;
+  }
   logCalculations({ transactions, ticker, pool }, { transactionLogic, logger }) {
     const transactionsByTicker = transactionLogic.sortTransactionsByDefaultOrder(
       transactions.filter(t => t.ticker === ticker)
@@ -120,7 +162,7 @@ export default class TransactionLogic {
     }
   }
   logMatch({ match: m, indent = '' }, { logger }) {
-    const costDesc = `Cost=${-(m.transaction.proceed_gbp - m.transaction.comission_gbp)}*${m.share}/${m.transaction.share}=£${m.getCost()}`
+    const costDesc = `Cost=${-(m.transaction.proceed_gbp - m.transaction.comission_gbp).toFixed(2)}*${m.share}/${m.transaction.share}=£${m.getCost()}`
     if (m.transaction.share < 0) {
       logger.log(indent + `Matches with ${m.share} ${m.transaction.ticker} sold on ${m.transaction.date.toISOString().split("T")[0]}. ${costDesc}`)
       return;

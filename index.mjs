@@ -43,3 +43,31 @@ for (const ticker of disposedTickers) {
     }
   )
 };
+
+logger.log('\n');
+
+const disposalSummary = [];
+for (const ticker of disposedTickers) {
+  disposalSummary.push(...transactionLogic.getDisposalSummary(
+    {
+      transactions,
+      pool: new TransactionPool({
+        ticker,
+        share: 0,
+        cost: 0,
+      }),
+      ticker
+    },
+    {
+      transactionLogic
+    }
+  ));
+};
+
+disposalSummary.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+
+for (var i = 0; i < disposalSummary.length; i++) {
+  console.log(
+    `${disposalSummary[i].ticker} (${disposalSummary[i].share} shares), ${disposalSummary[i].date.toISOString().split('T')[0]}, ${Math.round(disposalSummary[i].gain)}`
+  )
+}

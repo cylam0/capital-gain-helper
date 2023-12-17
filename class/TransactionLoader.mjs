@@ -13,7 +13,6 @@ export default class TransactionLoader {
     for (var i = 0; i < header.length; ++i) {
       fieldIndexLookup[header[i]] = i;
     }
-
     for (var i = 1; i < lines.length; ++i) {
       const line = lines[i];
       const fields = line.split(",");

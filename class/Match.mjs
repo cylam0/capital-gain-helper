@@ -6,10 +6,10 @@ export default class Match {
     this.share = share;
   }
   getCost() {
-    return -(this.transaction.proceed_gbp - this.transaction.comission_gbp) * this.share / this.transaction.share
+    return Math.round(-(this.transaction.proceed_gbp - this.transaction.comission_gbp) * this.share / this.transaction.share * 100) / 100
   }
   toCostString() {
-    return `Cost=${-(this.transaction.proceed_gbp - this.transaction.comission_gbp).toFixed(2)}*${this.share}/${this.transaction.share}=£${this.getCost().toFixed(2)}`
+    return `Cost=${-(this.transaction.proceed_gbp - this.transaction.comission_gbp)}*${this.share}/${this.transaction.share}=£${this.getCost()}`
   }
   toLogString() {
     if (this.transaction.share < 0) {

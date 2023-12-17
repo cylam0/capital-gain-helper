@@ -153,7 +153,7 @@ export default class TransactionLogic {
     const gain = (t.proceed_gbp - t.comission_gbp - totalCost)
     if (gain >= 0) {
       logger.log(indent +
-        `Chargable gain=${Math.abs(t.proceed_gbp - t.comission_gbp).toFixed(2)}-${totalCost.toFixed(2)}=£${gain.toFixed(2)}`
+        `Chargeable gain=${Math.abs(t.proceed_gbp - t.comission_gbp).toFixed(2)}-${totalCost.toFixed(2)}=£${gain.toFixed(2)}`
       )
     } else {
       logger.log(indent +

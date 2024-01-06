@@ -66,6 +66,7 @@ for (const ticker of disposedTickers) {
 
 disposalSummary.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
 
+console.log('Disposed assets/Disposal date/Gain')
 for (var i = 0; i < disposalSummary.length; i++) {
   console.log(
     `${disposalSummary[i].ticker} (${disposalSummary[i].share} shares), ${disposalSummary[i].date.toISOString().split('T')[0]}, ${Math.round(disposalSummary[i].gain)}`

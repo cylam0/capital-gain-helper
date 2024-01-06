@@ -50,7 +50,6 @@ export default class TransactionLogic {
   }
   computeDisposalGain({ transaction: t, costs }) {
     const totalCost = costs.reduce((a, b) => a + b, 0);
-    console.log(t.ticker, t.proceed_gbp, t.comission_gbp, totalCost)
     return (t.proceed_gbp - t.comission_gbp - totalCost)
   }
   getDisposalSummary({ transactions, ticker, pool }, { transactionLogic }) {
